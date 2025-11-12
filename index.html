@@ -39,22 +39,17 @@
     }
 
     h1{ margin:0 0 6px; font-size: clamp(22px, 3vw, 34px); letter-spacing:.2px }
-    .sub{color:var(--muted); font-size:14px; margin-bottom:22px}
+    .sub{color:var(--muted); font-size:14px; margin-bottom:18px}
 
-    .bar{
-      width:100%; height:24px; background:var(--bar-bg); border-radius:999px; overflow:hidden; position:relative;
-    }
-    .fill{
-      height:100%; width:0%; background:linear-gradient(90deg, var(--bar-fill), #7cd4ff); border-radius:999px; transition: width 200ms ease-out;
-    }
+    .bar-title{display:flex; justify-content:space-between; align-items:center; margin:8px 2px 6px; color:var(--muted); font-size:12px}
 
-    .row{display:flex; gap:16px; align-items:center; margin-top:12px; flex-wrap:wrap}
+    .bar{ width:100%; height:24px; background:var(--bar-bg); border-radius:999px; overflow:hidden; position:relative }
+    .fill{ height:100%; width:0%; background:linear-gradient(90deg, var(--bar-fill), #7cd4ff); border-radius:999px; transition: width 200ms ease-out }
+
+    .row{display:flex; gap:16px; align-items:center; margin-top:14px; flex-wrap:wrap}
     .kpi{flex:1 1 180px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)); border:1px solid rgba(100,120,150,.14); padding:12px 14px; border-radius:14px}
     .kpi .lab{color:var(--muted); font-size:12px; letter-spacing:.2px}
     .kpi .val{font-weight:700; font-size:18px; margin-top:2px}
-
-    footer{margin-top:20px; color:var(--muted); font-size:12px}
-    code {background: rgba(100,120,150,.12); padding:.2em .45em; border-radius:6px}
 
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0}
   </style>
@@ -65,19 +60,29 @@
       <h1 id="title">Work‑Week Progress</h1>
       <div class="sub">Mon–Fri · 09:00–18:00 · local time</div>
 
+      <!-- Daily progress bar -->
+      <div class="bar-title"><span>Today</span><span id="pctDay">0%</span></div>
+      <div class="bar" aria-label="Today's progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="fillDay" class="fill"></div>
+        <span class="sr-only" id="srDay">0%</span>
+      </div>
+      <div class="row" id="day-row">
+        <div class="kpi"><div class="lab">Completion</div><div class="val" id="pctDayBottom">0%</div></div>
+        <div class="kpi"><div class="lab">Worked today</div><div class="val" id="workedDay">0h 00m 00s</div></div>
+        <div class="kpi"><div class="lab">Remaining</div><div class="val" id="remainDay">9h 00m 00s</div></div>
+      </div>
+
+      <!-- Weekly progress bar -->
+      <div class="bar-title" style="margin-top:14px"><span>This week</span><span id="pctWeekTop">0%</span></div>
       <div class="bar" aria-label="Work week progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="fill" class="fill"></div>
         <span class="sr-only" id="sr">0%</span>
       </div>
-      <div class="row">
+      <div class="row" id="week-row">
         <div class="kpi"><div class="lab">Completion</div><div class="val" id="pct">0%</div></div>
-        <div class="kpi"><div class="lab">Worked this week</div><div class="val" id="worked">0h 00m</div></div>
-        <div class="kpi"><div class="lab">Remaining</div><div class="val" id="remain">45h 00m</div></div>
+        <div class="kpi"><div class="lab">Worked this week</div><div class="val" id="worked">0h 00m 00s</div></div>
+        <div class="kpi"><div class="lab">Remaining</div><div class="val" id="remain">45h 00m 00s</div></div>
       </div>
-
-      <footer>
-        Drop this file as <code>index.html</code> into a GitHub Pages repo. No dependencies. Updates in real time.
-      </footer>
     </section>
   </main>
 
@@ -86,74 +91,100 @@
     const END_HOUR   = 18;
     const WORK_DAYS = [1,2,3,4,5];
 
-    function startOfWeekMonday0900(d = new Date()){
-      const dt = new Date(d);
-      const day = dt.getDay();
-      const diffToMonday = (day + 6) % 7;
-      dt.setHours(START_HOUR,0,0,0);
-      dt.setDate(dt.getDate() - diffToMonday);
-      return dt;
+    function isWorkday(d){ return WORK_DAYS.includes(d.getDay()); }
+
+    function intervalForToday(d = new Date()){
+      const start = new Date(d); start.setHours(START_HOUR,0,0,0);
+      const end = new Date(d); end.setHours(END_HOUR,0,0,0);
+      return {start, end};
     }
 
     function intervalsForWeek(d = new Date()){
-      const mon = startOfWeekMonday0900(d);
+      const startOfWeek = new Date(d);
+      const day = d.getDay();
+      const diffToMonday = (day + 6) % 7;
+      startOfWeek.setHours(START_HOUR,0,0,0);
+      startOfWeek.setDate(startOfWeek.getDate()-diffToMonday);
       const spans = [];
       for(let i=0;i<5;i++){
-        const start = new Date(mon);
+        const start = new Date(startOfWeek);
         start.setDate(start.getDate()+i);
         const end = new Date(start);
         end.setHours(END_HOUR,0,0,0);
-        spans.push({start, end});
+        spans.push({start,end});
       }
       return spans;
     }
 
-    function msToHM(ms){
+    function msToHMS(ms){
       ms = Math.max(0, Math.floor(ms));
       const h = Math.floor(ms / 3_600_000);
       const m = Math.floor((ms % 3_600_000) / 60_000);
-      return `${h}h ${m.toString().padStart(2,'0')}m`;
+      const s = Math.floor((ms % 60_000) / 1_000);
+      return `${h}h ${m.toString().padStart(2,'0')}m ${s.toString().padStart(2,'0')}s`;
     }
 
-    function computeProgress(now = new Date()){
+    function computeDayProgress(now = new Date()){
+      const {start,end} = intervalForToday(now);
+      const total = end - start;
+      let done = 0;
+      if(now >= end) done = total;
+      else if(now > start) done = now - start;
+      const pct = (done / total) * 100;
+      const remainMs = Math.max(0, total - done);
+      return {pct, doneMs: done, remainMs};
+    }
+
+    function computeWeekProgress(now = new Date()){
       const spans = intervalsForWeek(now);
-      const total = spans.reduce((acc,s)=> acc + (s.end - s.start), 0);
+      const total = spans.reduce((a,s)=>a+(s.end-s.start),0);
       let done = 0;
       for(const s of spans){
         if(now <= s.start) break;
-        if(now >= s.end){ done += (s.end - s.start); continue; }
-        done += (now - s.start);
-        break;
+        if(now >= s.end) done += (s.end-s.start);
+        else {done += (now - s.start); break;}
       }
-      const lastEnd = spans[spans.length-1].end;
-      if(now >= lastEnd) done = total;
-      if(now < spans[0].start) done = 0;
-      const pct = total === 0 ? 0 : (done / total) * 100;
-      const remainMs = Math.max(0, total - done);
-      return { pct: Math.max(0, Math.min(100, pct)), doneMs: done, remainMs };
+      const pct = (done / total)*100;
+      const remainMs = Math.max(0,total-done);
+      return {pct,doneMs:done,remainMs};
     }
 
-    const fillEl = document.getElementById('fill');
-    const pctEl = document.getElementById('pct');
-    const workedEl = document.getElementById('worked');
-    const remainEl = document.getElementById('remain');
-    const barEl = document.querySelector('.bar');
-    const srEl = document.getElementById('sr');
+    const fillDayEl = document.getElementById('fillDay');
+    const pctDayTopEl = document.getElementById('pctDay');
+    const pctDayBottomEl = document.getElementById('pctDayBottom');
+    const workedDayEl = document.getElementById('workedDay');
+    const remainDayEl = document.getElementById('remainDay');
+
+    const fillWeekEl = document.getElementById('fill');
+    const pctWeekTopEl = document.getElementById('pctWeekTop');
+    const pctWeekBottomEl = document.getElementById('pct');
+    const workedWeekEl = document.getElementById('worked');
+    const remainWeekEl = document.getElementById('remain');
 
     function update(){
       const now = new Date();
-      const {pct, doneMs, remainMs} = computeProgress(now);
-      const pctRounded = Math.floor(pct * 100) / 100;
-      fillEl.style.width = pct.toFixed(6) + '%';
-      barEl.setAttribute('aria-valuenow', pctRounded.toString());
-      pctEl.textContent = pctRounded.toFixed(pctRounded % 1 === 0 ? 0 : 2) + '%';
-      workedEl.textContent = msToHM(doneMs);
-      remainEl.textContent = msToHM(remainMs);
-      srEl.textContent = pctRounded + '%';
+
+      // Day progress
+      const {pct:pctD,doneMs:doneD,remainMs:remainD} = computeDayProgress(now);
+      fillDayEl.style.width = pctD.toFixed(6)+'%';
+      const pctDR = Math.floor(pctD*100)/100;
+      pctDayTopEl.textContent = pctDR.toFixed(pctDR%1===0?0:2)+'%';
+      pctDayBottomEl.textContent = pctDayTopEl.textContent;
+      workedDayEl.textContent = msToHMS(doneD);
+      remainDayEl.textContent = msToHMS(remainD);
+
+      // Week progress
+      const {pct:pctW,doneMs:doneW,remainMs:remainW} = computeWeekProgress(now);
+      fillWeekEl.style.width = pctW.toFixed(6)+'%';
+      const pctWR = Math.floor(pctW*100)/100;
+      pctWeekTopEl.textContent = pctWR.toFixed(pctWR%1===0?0:2)+'%';
+      pctWeekBottomEl.textContent = pctWeekTopEl.textContent;
+      workedWeekEl.textContent = msToHMS(doneW);
+      remainWeekEl.textContent = msToHMS(remainW);
     }
 
     update();
-    setInterval(update, 1000);
+    setInterval(update,1000);
   </script>
 </body>
 </html>
